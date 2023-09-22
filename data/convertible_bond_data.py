@@ -40,14 +40,14 @@ def get_first_line():
     return last_map, xls
 
 
-def login_crawler_data():
-    date = datetime.now().strftime("%Y-%m-%d")
-    output_path = '../html/' + date + "_output.html"
+def login_crawler_data(date):
+    # date = datetime.now().strftime("%Y-%m-%d")
+    output_path = './html/' + date + "_output.html"
     filename = f'stdevry_{date}.json'
 
     # 当前工作目录
     # file_dir = os.getcwd() + f'/out/stdevry/'
-    file_dir = "/Users/water/quant/convertible-bond-crawler/out/stdevry/"
+    file_dir = "/out/stdevry/"
     code_stdevry_map = dict()
     if not os.path.exists(file_dir + filename):
         filename = f'stdevry.json'
@@ -336,8 +336,10 @@ def save_xls_data(compare_date, date, df, xls):
 
 if __name__ == '__main__':
     compare_date = "2023-05-06"
-    date = datetime.now().strftime("%Y-%m-%d")
+    # date = datetime.now().strftime("%Y-%m-%d")
+    date = "2023-09-21"
     last_map, xls = get_first_line()
-    bs, code_stdevry_map = login_crawler_data()
+    bs, code_stdevry_map = login_crawler_data(date)
     list = parse_data(bs, code_stdevry_map, last_map)
-    save_data(list, date, compare_date, xls)
+    #  存入数据库
+    save_data(list, date, compare_date, xls, False, True)

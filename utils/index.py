@@ -22,7 +22,7 @@ import mplcursors
 
 def get_bs_source(date, is_read_local=False):
 
-    path = '../html/' + date + "_output.html"
+    path = './html/' + date + "_output.html"
 
     bs = None
     if is_read_local:
