@@ -1,29 +1,3 @@
-'''
-Desc: 可转债数据入口
-File: /main.py
-Project: convertible-bond
-File Created: Saturday, 23rd July 2022 9:09:56 pm
------
-Copyright (c) 2022 Camel Lu
-'''
-import os
-import re
-import string
-import json
-import time
-from datetime import datetime
-import pandas as pd
-import filter
-from lib.mysnowflake import IdWorker
-from utils.index import get_bs_source, store_database, output_excel, delete_key_for_store, plot
-from utils.json import write_fund_json_data
-from config import is_backtest, rename_map, strategy_list, out_dir, summary_filename, multiple_factors_config
-from strategy.multiple_factors import impl_multiple_factors
-
-repair_flag_style = 'color:blue'
-repair_ransom_style = 'color:red'
-pre_ransom_style = 'color:Fuchsia'
-
 """
 处理逻辑分为几个步骤
 1、获取表头
@@ -32,28 +6,48 @@ pre_ransom_style = 'color:Fuchsia'
 4、存储数据
 
 """
+from datetime import datetime
+from config import rename_map, strategy_list, multiple_factors_config, summary_filename, out_dir
+import pandas as pd
+import os
+from utils.index import get_bs_source, delete_key_for_store, output_excel, store_database
+from utils.json import write_fund_json_data
+import json
+from lib.mysnowflake import IdWorker
+import string
+import re
+import filter
+
+repair_flag_style = 'color:blue'
+repair_ransom_style = 'color:red'
+pre_ransom_style = 'color:Fuchsia'
 
 
-def impl(is_output, is_save_database, *, date, compare_date):
-    isReadLocal = False
-    output_path = './html/' + date + "_output.html"
-    print(f"上期时间为:{compare_date}")
+# 获取all_row 这个标签页中数据，并将数据存入last_map
+def get_first_line():
+    compare_date = "2023-05-06"
     last_map = {}
-    is_start = date == compare_date
-    if is_start == False:
-        last_path = f'{out_dir}{compare_date}_cb_list.xlsx'
-        xls = pd.ExcelFile(last_path, engine='openpyxl')
-        df_all_last = xls.parse("All_ROW")
+    last_path = f'../out/{compare_date}_cb_list.xlsx'
+    xls = pd.ExcelFile(last_path, engine='openpyxl')
+    # 这是读取all_row 这个标签页中的数据
+    df_all_last = xls.parse("All_ROW")
 
-        # todo astype 有什么用途
-        df_all_last['可转债代码'] = df_all_last['可转债代码'].astype(str)
-        # todo 获取表头
-        for index, item in df_all_last.iterrows():
-            last_map[item['可转债代码']] = item.to_dict()
+    # 这行代码是将一个 DataFrame（数据框）对象中名为 df_all_last 的列 '可转债代码' 的数据类型转换为字符串类型（str）
+    df_all_last['可转债代码'] = df_all_last['可转债代码'].astype(str)
+    # 获取excel中不同标签页
+    for index, item in df_all_last.iterrows():
+        last_map[item['可转债代码']] = item.to_dict()
+    return last_map, xls
+
+
+def login_crawler_data():
+    date = datetime.now().strftime("%Y-%m-%d")
+    output_path = '../html/' + date + "_output.html"
     filename = f'stdevry_{date}.json'
-    # filename = f'stdevry.json'
-    # todo os.getcwd() ??
-    file_dir = os.getcwd() + f'/out/stdevry/'
+
+    # 当前工作目录
+    # file_dir = os.getcwd() + f'/out/stdevry/'
+    file_dir = "/Users/water/quant/convertible-bond-crawler/out/stdevry/"
     code_stdevry_map = dict()
     if not os.path.exists(file_dir + filename):
         filename = f'stdevry.json'
@@ -63,7 +57,11 @@ def impl(is_output, is_save_database, *, date, compare_date):
         if os.path.getsize(output_path) > 0:
             isReadLocal = True
     bs = get_bs_source(date, isReadLocal)
-    # print(bs)
+    return bs, code_stdevry_map
+
+
+def parse_data(bs, code_stdevry_map, last_map, is_output=True, is_save_database=False):
+    date = datetime.now().strftime("%Y-%m-%d")
     rows = bs.find_all('tr')
     list = []
     worker = IdWorker()
@@ -204,7 +202,8 @@ def impl(is_output, is_save_database, *, date, compare_date):
                 'remain_price_tax': float(remain_price_tax),
 
                 'is_unlist': is_unlist,
-                'last_is_unlist': is_unlist if is_start else "Y",
+                # 'last_is_unlist': is_unlist if is_start else "Y",
+                'last_is_unlist': "Y",
                 'issue_date': date if issue_date == '今日上市' else issue_date,
                 'date_convert_distance': date_convert_distance,
 
@@ -235,152 +234,110 @@ def impl(is_output, is_save_database, *, date, compare_date):
             list.append(item)
         except Exception:
             raise (Exception)
+    return list
 
+
+def save_data(list, date, compare_date, xls, is_output=True, is_save_database= False):
     df = pd.DataFrame.from_records(list)
     # 输出到excel
     if is_output:
-        output_excel(df, sheet_name='All_ROW', date=date)
-        filter_data_dict = {}
-        for strategy in strategy_list:
-            strategy_name = strategy['name']
-            filter_key = strategy['filter_key']
-            filter_processor = getattr(filter, filter_key)
-            if filter_key == 'filter_multiple_factors':
-                filter_data = filter_processor(
-                    df, date=date, multiple_factors_config=multiple_factors_config)
-            else:
-                filter_data = filter_processor(df)
-            output_excel(filter_data, sheet_name=strategy_name, date=date)
-            filter_data_dict[filter_key] = filter_data
-        if is_start:
-            print('success!!! data total: ', len(list))
-            return
-        all_df_rename = df.rename(columns=rename_map).reset_index()
-        percents = []
-        for strategy in strategy_list:
-            strategy_name = strategy['name']
-            head_count = strategy['head_count']
-            all_strategy_df = xls.parse(strategy['name'])
-            all_strategy_df['可转债代码'] = all_strategy_df['可转债代码'].astype(str)
-            strategy_df = all_strategy_df.head(
-                head_count)  # 读取前20条
-            print(f"{strategy_name}'s len", len(strategy_df))
-            cur_percent = 0
-            cur_stocks_percent = 0
-            if len(strategy_df) > 0:
-                strategy_df = pd.merge(all_df_rename, strategy_df,
-                                       on=['可转债代码'], how='inner')
-                cur_percent = round(strategy_df["较上期涨跌幅_x"].mean().round(
-                    2) * (len(strategy_df) / head_count), 2)  # 乘以仓位
-                cur_stocks_percent = round(strategy_df["较上期股价涨跌幅_x"].mean().round(
-                    2) * (len(strategy_df) / head_count), 2)
-            strategy['percent'] = cur_percent
-            strategy['stocks_percent'] = cur_stocks_percent
-
-            percents.append({
-                'name': f'{strategy_name}(距{compare_date})',
-                'total': len(all_strategy_df),
-                'head': len(strategy_df),
-                'percent': strategy['percent'],
-                'stocks_percent': strategy['stocks_percent'],
-            })
-        filename = summary_filename
-        file_dir = f'{out_dir}'
-        pathname = file_dir + filename
-        if not os.path.exists(pathname):
-            stats_data = dict()
-        else:
-            with open(pathname) as json_file:
-                stats_data = json.load(json_file)
-        last_period_percents = stats_data.get(
-            compare_date) if stats_data.get(compare_date) else []
-        for strategy in strategy_list:
-            last_accumulate_item = dict()
-            start = strategy['start']
-            for percent in last_period_percents:
-                if percent['name'] == f'累计{strategy["name"]}({start}至今)':
-                    last_accumulate_item = percent
-            last_accumulate = last_accumulate_item.get(
-                'percent') if last_accumulate_item.get('percent') else 0
-            last_stocks_accumulate = last_accumulate_item.get(
-                'stocks_percent') if last_accumulate_item.get('stocks_percent') else 0
-            percents.append({
-                'name': f'累计{strategy["name"]}({start}至今)',
-                'percent': round(((last_accumulate / 100 + 1) * (1 + strategy.get('percent') / 100) - 1) * 100, 2),
-                'stocks_percent': round(
-                    ((last_stocks_accumulate / 100 + 1) * (1 + strategy.get('stocks_percent') / 100) - 1) * 100, 2)
-            })
-        # last_accumulate_item = dict()
-        # for percent in last_period_percents:
-        #     if percent['name'] == '累计涨跌幅(all)':
-        #         last_accumulate_item = percent
-        # last_accumulate = last_accumulate_item.get(
-        #     'percent') if last_accumulate_item.get('percent') else 0
-        # percents.append({
-        #     'name': '累计涨跌幅(all)',
-        #     'percent': round(((last_accumulate / 100 + 1) * (1 + all_percent / 100) - 1) * 100, 2),
-        # })
-        stats_data[date] = percents
-        write_fund_json_data(stats_data, filename, file_dir)
-        output_excel(pd.DataFrame(percents), sheet_name="汇总", date=date)
+        save_xls_data(compare_date, date, df, xls)
     if is_save_database:
         # 入库
         store_database(df)
     print('success!!! data total: ', len(list))
 
 
-def backtest():
-    htmlFiles = os.listdir('./html/')
-    dateList = []
-    for file in htmlFiles:
-        dateList.append(file[0:10])
+def save_xls_data(compare_date, date, df, xls):
+    output_excel(df, sheet_name='All_ROW', date=date)
+    filter_data_dict = {}
+    for strategy in strategy_list:
+        strategy_name = strategy['name']
+        filter_key = strategy['filter_key']
+        filter_processor = getattr(filter, filter_key)
+        if filter_key == 'filter_multiple_factors':
+            filter_data = filter_processor(
+                df, date=date, multiple_factors_config=multiple_factors_config)
+        else:
+            filter_data = filter_processor(df)
+        output_excel(filter_data, sheet_name=strategy_name, date=date)
+        filter_data_dict[filter_key] = filter_data
+    # if is_start:
+    #     print('success!!! data total: ', len(list))
+    #     return
+    all_df_rename = df.rename(columns=rename_map).reset_index()
+    percents = []
+    for strategy in strategy_list:
+        strategy_name = strategy['name']
+        head_count = strategy['head_count']
+        all_strategy_df = xls.parse(strategy['name'])
+        all_strategy_df['可转债代码'] = all_strategy_df['可转债代码'].astype(str)
+        strategy_df = all_strategy_df.head(head_count)  # 读取前20条
+        print(f"{strategy_name}'s len", len(strategy_df))
+        cur_percent = 0
+        cur_stocks_percent = 0
+        if len(strategy_df) > 0:
+            strategy_df = pd.merge(all_df_rename, strategy_df,
+                                   on=['可转债代码'], how='inner')
+            cur_percent = round(strategy_df["较上期涨跌幅_x"].mean().round(
+                2) * (len(strategy_df) / head_count), 2)  # 乘以仓位
+            cur_stocks_percent = round(strategy_df["较上期股价涨跌幅_x"].mean().round(
+                2) * (len(strategy_df) / head_count), 2)
+        strategy['percent'] = cur_percent
+        strategy['stocks_percent'] = cur_stocks_percent
 
-    sorted_dates = sorted(dateList)
-    prev_date = None
-    for idx, date in enumerate(sorted_dates):
-        cur_date = date
-        compare_date = prev_date if prev_date else sorted_dates[
-            0] if idx == 0 else sorted_dates[idx - 1]
-        print(idx, cur_date, compare_date)
-        # last_path = f'{out_dir}{compare_date}_cb_list.xlsx'
-        # if idx != 0 and not os.path.exists(last_path):
+        percents.append({
+            'name': f'{strategy_name}(距{compare_date})',
+            'total': len(all_strategy_df),
+            'head': len(strategy_df),
+            'percent': strategy['percent'],
+            'stocks_percent': strategy['stocks_percent'],
+        })
+    filename = summary_filename
+    file_dir = f'{out_dir}'
+    pathname = file_dir + filename
+    if not os.path.exists(pathname):
+        stats_data = dict()
+    else:
+        with open(pathname) as json_file:
+            stats_data = json.load(json_file)
+    last_period_percents = stats_data.get(
+        compare_date) if stats_data.get(compare_date) else []
+    for strategy in strategy_list:
+        last_accumulate_item = dict()
+        start = strategy['start']
+        for percent in last_period_percents:
+            if percent['name'] == f'累计{strategy["name"]}({start}至今)':
+                last_accumulate_item = percent
+        last_accumulate = last_accumulate_item.get(
+            'percent') if last_accumulate_item.get('percent') else 0
+        last_stocks_accumulate = last_accumulate_item.get(
+            'stocks_percent') if last_accumulate_item.get('stocks_percent') else 0
+        percents.append({
+            'name': f'累计{strategy["name"]}({start}至今)',
+            'percent': round(((last_accumulate / 100 + 1) * (1 + strategy.get('percent') / 100) - 1) * 100, 2),
+            'stocks_percent': round(
+                ((last_stocks_accumulate / 100 + 1) * (1 + strategy.get('stocks_percent') / 100) - 1) * 100, 2)
+        })
+    # last_accumulate_item = dict()
+    # for percent in last_period_percents:
+    #     if percent['name'] == '累计涨跌幅(all)':
+    #         last_accumulate_item = percent
+    # last_accumulate = last_accumulate_item.get(
+    #     'percent') if last_accumulate_item.get('percent') else 0
+    # percents.append({
+    #     'name': '累计涨跌幅(all)',
+    #     'percent': round(((last_accumulate / 100 + 1) * (1 + all_percent / 100) - 1) * 100, 2),
+    # })
+    stats_data[date] = percents
+    write_fund_json_data(stats_data, filename, file_dir)
+    output_excel(pd.DataFrame(percents), sheet_name="汇总", date=date)
 
-        #     continue
-        is_save_database = False
-        is_output = True
-        impl(is_output, is_save_database, date=cur_date,
-             compare_date=compare_date)
-        prev_date = cur_date  # 成功输出之后，更新prev_date
 
-
-if __name__ == "__main__":
-    input_value = input("请输入下列序号执行操作:\n \
-            1.“输出到本地” \n \
-            2.“存到数据库” \n \
-            3.“回测” \n \
-            4.“可视化” \n \
-            5.“多因子策略回测” \n \
-        输入：")
-    date = datetime.now().strftime("%Y-%m-%d")
-    # date = "2023-04-21"
+if __name__ == '__main__':
     compare_date = "2023-05-06"
-    if input_value == '1':
-        is_save_database = False
-        is_output = True
-        impl(is_output, is_save_database, date=date,
-             compare_date=compare_date)
-    elif input_value == '2':
-        is_save_database = True
-        is_output = False
-        impl(is_output, is_save_database, date=date,
-             compare_date=compare_date)
-    elif input_value == '3':
-        backtest()
-        plot()
-    elif input_value == '4':
-        plot()
-    elif input_value == '5':
-        # file_dir = 'bond=0.7_stock=0.3_price=115_count=10_premium=25_premium_ratio=0.3_stdevry=30_max_price=130/'
-        file_dir = 'out/'
-        parent_dir = './'
-        impl_multiple_factors(file_dir=file_dir, parent_dir=parent_dir)
+    date = datetime.now().strftime("%Y-%m-%d")
+    last_map, xls = get_first_line()
+    bs, code_stdevry_map = login_crawler_data()
+    list = parse_data(bs, code_stdevry_map, last_map)
+    save_data(list, date, compare_date, xls)

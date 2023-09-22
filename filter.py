@@ -8,25 +8,54 @@ Copyright (c) 2022 Camel Lu
 '''
 from datetime import datetime
 
+'''
+到期保本
+'''
+
 
 def filter_profit_due(df):
+    '''
+    税后到期收益率 > 0 — 保本
+    距离转股时间已到 — 这样正股上涨才带得动
+    转股价格/每股净资产 > 1.5 — 下修有空间， 同时可以过滤一下垃圾袋
+    满足下修条件，且不在承诺不下修时间内 — 排除那些在截至时间内承诺不下修的可转债
+    '''
+
     df_filter = df.loc[(df['rate_expire_aftertax'] > 0)
                        #    & (df['price'] < 115)
                        & (df['date_convert_distance'] == '已到')
                        & (df['cb_to_pb'] > 1.5)
                        & (df['is_repair_flag'] == 'True')
-                       #    & (df['remain_to_cap'] > 5)
+        #    & (df['remain_to_cap'] > 5)
                        ]
 
     def my_filter(row):
+        # repair_flag_remark--- 下修备注
         if '暂不行使下修权利' in row.repair_flag_remark or '距离不下修承诺' in row.repair_flag_remark:
             return False
         return True
+
+    # df_filter.apply(my_filter, axis=1)：apply() 是 DataFrame 对象的方法，用于将指定的函数应用于 DataFrame 的行或列。在这里，my_filter
+    # 是自定义的函数，axis=1 参数表示对 DataFrame 的每一行应用函数 my_filter。 df_filter[df_filter.apply(my_filter, axis=1)]：将 apply()
+    # 方法的结果用于 DataFrame 的索引操作。通过将结果作为索引，可以对 DataFrame 进行行过滤操作，只保留满足条件的行。
     df_filter = df_filter[df_filter.apply(my_filter, axis=1)]
     return df_filter
 
 
+'''
+回售摸彩
+'''
+
+
 def filter_return_lucky(df):
+    """
+        'rate_expire_aftertax': '税后到期收益率'
+        'date_convert_distance': '距离转股时间'
+        'cb_name': '可转债名称'
+        'cb_to_pb': '转股价格/每股净资产'
+        'is_repair_flag': '是否满足下修条件'
+        'remain_to_cap': '转债剩余/市值比例'
+    """
     df_filter = df.loc[(df['price'] < 125)
                        & (df['rate_expire_aftertax'] > -10)
                        & (df['date_return_distance'] == '回售内')
@@ -40,7 +69,22 @@ def filter_return_lucky(df):
     return df_filter
 
 
+'''
+低价格低溢价
+'''
+
+
 def filter_double_low(df):
+    """
+        'date_return_distance': '距离回售时间'
+        'cb_name': '可转债名称'
+        'is_unlist': '未发行'
+        'is_ransom_flag': '是否满足强赎条件'
+        'cb_to_pb': '转股价格/每股净资产'
+        'remain_to_cap': '转债剩余/市值比例'
+        'premium_rate': '转股溢价率',
+
+    """
     df_filter = df.loc[(df['date_return_distance'] != '无权')
                        & (~df["cb_name"].str.contains("EB"))
                        & (df['is_unlist'] == 'N')
@@ -58,11 +102,17 @@ def filter_double_low(df):
             day_count = float(row.date_remain_distance[0:-1])
             return day_count > 90
         return True
+
     df_filter = df_filter[df_filter.apply(due_filter, axis=1)]
 
     df_filter = df_filter.sort_values(
         by='new_style', ascending=True, ignore_index=True)
     return df_filter
+
+
+'''
+三低转债
+'''
 
 
 def filter_three_low(df):
@@ -74,18 +124,24 @@ def filter_three_low(df):
         & (df['remain_amount'] < 2)
         & ((df['premium_rate'] < 30) | (df['price'] < 130))
         & (df['market_cap'] < 100)
-    ]
+        ]
 
     def due_filter(row):
         if '天' in row.date_remain_distance and not '年' in row.date_remain_distance:
             day_count = float(row.date_remain_distance[0:-1])
             return day_count > 90
         return True
+
     df_filter = df_filter[df_filter.apply(due_filter, axis=1)]
 
     df_filter = df_filter.sort_values(
         by='remain_amount', ascending=True, ignore_index=True)
     return df_filter
+
+
+'''
+次新
+'''
 
 
 def filter_disable_converte(df):
@@ -94,11 +150,16 @@ def filter_disable_converte(df):
         & (df['date_convert_distance'] != '已到')
         & (df['is_unlist'] == 'N')
         & (df['last_is_unlist'] == 'N')
-    ]
+        ]
 
     df_filter = df_filter.sort_values(
         by='remain_amount', ascending=True, ignore_index=True)
     return df_filter
+
+
+'''
+多因子筛选
+'''
 
 
 def filter_multiple_factors(df, *, date, multiple_factors_config):
@@ -174,7 +235,7 @@ def filter_multiple_factors(df, *, date, multiple_factors_config):
         & (df['is_ransom_flag'] == 'False')
         & (df['cb_to_pb'] > 0.5)  # 排除问题债
         & (df['cb_to_pb'] < 15)  # 排除问题债
-    ]
+        ]
     weight_score_key = 'weight'
 
     def core_filter(row):
@@ -195,7 +256,7 @@ def filter_multiple_factors(df, *, date, multiple_factors_config):
                              premium_bemchmark) / premium_bemchmark
         # 债权基础分
         price_score = 1 - (row.price - price_bemchmark) / \
-            price_bemchmark
+                      price_bemchmark
         # mid_price_score =
         # 可转债股性市净率评分
         pb_score = round(
@@ -245,12 +306,12 @@ def filter_multiple_factors(df, *, date, multiple_factors_config):
 
         stock_score = round(stock_ratio *
                             (
-                                premium_score * premium_ratio +
-                                stock_stdevry_score * stock_stdevry_ratio +
-                                remain_score * remain_ratio +
-                                pb_score * stock_pb_ratio +
-                                stock_option_score * stock_option_ratio +
-                                stock_market_cap_score * stock_market_cap_ratio
+                                    premium_score * premium_ratio +
+                                    stock_stdevry_score * stock_stdevry_ratio +
+                                    remain_score * remain_ratio +
+                                    pb_score * stock_pb_ratio +
+                                    stock_option_score * stock_option_ratio +
+                                    stock_market_cap_score * stock_market_cap_ratio
                             ), 2)
 
         row['option'] = stock_option_score
@@ -263,6 +324,7 @@ def filter_multiple_factors(df, *, date, multiple_factors_config):
         weight_score = bond_score + stock_score
         row[weight_score_key] = weight_score
         return row
+
     df_filter = df_filter.apply(calulate_score, axis=1)
     df_filter = df_filter[df_filter.apply(core_filter, axis=1)]
 
@@ -275,8 +337,13 @@ def filter_listed_all(df):
     df_filter = df.loc[
         (~df["cb_name"].str.contains("EB"))
         & (df['is_unlist'] == 'N')
-    ]
+        ]
     return df_filter
+
+
+'''
+所有除新债
+'''
 
 
 def filter_listed_all_exclude_new(df):
@@ -284,7 +351,7 @@ def filter_listed_all_exclude_new(df):
         (~df["cb_name"].str.contains("EB"))
         & (df['is_unlist'] == 'N')
         & (df['last_is_unlist'] == 'N')
-    ]
+        ]
     return df_filter
 
 
@@ -297,7 +364,7 @@ def filter_downward_revise(df):
         & (~df["repair_flag_remark"].str.contains("距离不下修承诺"))
         & (df["price"] < 120)
         & (df["premium_rate"] > 35)
-    ]
+        ]
     df_filter = df_filter.sort_values(
         by='new_style', ascending=True, ignore_index=True)
     return df_filter

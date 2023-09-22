@@ -22,7 +22,7 @@ import mplcursors
 
 def get_bs_source(date, is_read_local=False):
 
-    path = './html/' + date + "_output.html"
+    path = '../html/' + date + "_output.html"
 
     bs = None
     if is_read_local:
@@ -99,6 +99,8 @@ def output_excel(df, *, sheet_name="All", date):
     if not os.path.exists(file_dir):
         os.makedirs(file_dir)
         print("目录新建成功：%s" % file_dir)
+    # df.rename(columns=rename_map)：rename() 是 DataFrame 对象的方法，用于重命名列名。rename_map 是一个字典，其中键为原始列名，值为需要修改成的新列名。
+    # reset_index(drop=True)：reset_index() 是 DataFrame 对象的方法，用于重置索引。drop=True 参数表示重置索引后不保留原来的索引列。这样可以生成一个新的 DataFrame 对象，并将原来的索引列丢弃。
     df_output = df.rename(columns=rename_map).reset_index(drop=True)
     update_xlsx_file(path, df_output, sheet_name)
     # df.to_excel(path, index=False)
