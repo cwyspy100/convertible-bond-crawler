@@ -32,6 +32,7 @@ rename_map = {
     'remain_amount': '剩余规模',
     'market_cap': '股票市值',
 
+
     'last_price': '上期转债价格',
     'last_cb_percent': '较上期涨跌幅',
     'cb_percent': '转债涨跌幅',

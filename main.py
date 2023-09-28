@@ -363,7 +363,6 @@ if __name__ == "__main__":
             5.“多因子策略回测” \n \
         输入：")
     date = datetime.now().strftime("%Y-%m-%d")
-    # date = "2023-09-01"
     # date = "2023-04-21"
     compare_date = "2023-05-06"
     if input_value == '1':
@@ -386,4 +385,5 @@ if __name__ == "__main__":
         file_dir = 'out/'
         parent_dir = './'
         impl_multiple_factors(file_dir=file_dir, parent_dir=parent_dir)
+
 
