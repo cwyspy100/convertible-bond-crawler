@@ -116,6 +116,12 @@ def filter_double_low(df):
 
 
 def filter_three_low(df):
+    """
+    remain_amount：剩余规模
+    'premium_rate': '转股溢价率'
+    'market_cap': '股票市值'
+    'date_remain_distance': '距离到期时间',
+    """
     df_filter = df.loc[
         (~df["cb_name"].str.contains("EB"))
         #    & (df['date_return_distance'] != '回售内')
