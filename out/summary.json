@@ -4398,5 +4398,115 @@
       "percent": 8.98,
       "stocks_percent": -3.73
     }
+  ],
+  "2023-10-11": [
+    {
+      "name": "所有(距2023-05-06)",
+      "total": 495,
+      "head": 476,
+      "percent": -0.05,
+      "stocks_percent": -2.71
+    },
+    {
+      "name": "所有除新债(距2023-05-06)",
+      "total": 493,
+      "head": 474,
+      "percent": -0.05,
+      "stocks_percent": -2.7
+    },
+    {
+      "name": "到期保本(距2023-05-06)",
+      "total": 17,
+      "head": 10,
+      "percent": -1.64,
+      "stocks_percent": -4.37
+    },
+    {
+      "name": "回售摸彩(距2023-05-06)",
+      "total": 12,
+      "head": 10,
+      "percent": 1.56,
+      "stocks_percent": 6.04
+    },
+    {
+      "name": "低价格低溢价(距2023-05-06)",
+      "total": 8,
+      "head": 8,
+      "percent": 0.03,
+      "stocks_percent": -2.14
+    },
+    {
+      "name": "三低转债(距2023-05-06)",
+      "total": 16,
+      "head": 8,
+      "percent": 6.0,
+      "stocks_percent": -0.2
+    },
+    {
+      "name": "下修博弈(距2023-05-06)",
+      "total": 72,
+      "head": 10,
+      "percent": 1.99,
+      "stocks_percent": 3.52
+    },
+    {
+      "name": "次新(距2023-05-06)",
+      "total": 62,
+      "head": 10,
+      "percent": 5.17,
+      "stocks_percent": 0.55
+    },
+    {
+      "name": "多因子(距2023-05-06)",
+      "total": 15,
+      "head": 10,
+      "percent": -1.85,
+      "stocks_percent": -6.98
+    },
+    {
+      "name": "累计所有(2022-10-22至今)",
+      "percent": -0.4,
+      "stocks_percent": -0.8
+    },
+    {
+      "name": "累计所有除新债(2022-10-22至今)",
+      "percent": -0.39,
+      "stocks_percent": -0.72
+    },
+    {
+      "name": "累计到期保本(2022-10-22至今)",
+      "percent": 2.08,
+      "stocks_percent": 14.67
+    },
+    {
+      "name": "累计回售摸彩(2022-10-22至今)",
+      "percent": 7.7,
+      "stocks_percent": 24.29
+    },
+    {
+      "name": "累计低价格低溢价(2022-10-22至今)",
+      "percent": 7.44,
+      "stocks_percent": 1.95
+    },
+    {
+      "name": "累计三低转债(2022-10-22至今)",
+      "percent": 5.37,
+      "stocks_percent": -1.66
+    },
+    {
+      "name": "累计下修博弈(2022-10-22至今)",
+      "percent": 10.03,
+      "stocks_percent": 26.03
+    },
+    {
+      "name": "累计次新(2022-10-22至今)",
+      "percent": -8.05,
+      "stocks_percent": -5.26
+    },
+    {
+      "name": "累计多因子(2022-10-22至今)",
+      "percent": 8.38,
+      "stocks_percent": -4.62
+    }
   ]
 }
